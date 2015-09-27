@@ -1,7 +1,7 @@
 # blocklist-update
 
-
 /etc/dnsmasq/
+
   Contains block list, last version of block list and header file
 
 /usr/local/bin/blocklist-update
