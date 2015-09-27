@@ -1,0 +1,6 @@
+[Unit]
+Description=Updates dns block lists for dnsmasq
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/blocklist-update

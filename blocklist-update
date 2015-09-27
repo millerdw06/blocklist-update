@@ -1,0 +1,66 @@
+#!/bin/bash
+URL="http://hosts-file.net"
+TMP_DIR="/tmp/hosts_files"
+HOST_FILES="ad_servers emd exp fsa grm hjk mmt psh"
+CURRENT_HOST_FILES=/etc/dnsmasq
+WHITE_LIST_DIR=$CURRENT_HOST_FILES/white_lists
+NEW_HOSTS="false"
+
+logger -i -t blocklist-update "Checking for new host files"
+
+if [[ ! -d $TMP_DIR ]]; then
+    mkdir -p  $TMP_DIR
+fi
+
+if [[ ! -d $CURRENT_HOST_FILES ]]; then
+    mkdir -p $CURRENT_HOST_FILES
+fi
+
+for i in $HOST_FILES
+do
+
+    TARGET_FILE=${i}.txt
+    HEADER_FILE=$TMP_DIR/${i}.header
+    curl -I -silent $URL/$TARGET_FILE > $HEADER_FILE
+    REMOTE_FILE_STATUS=$(cat $HEADER_FILE | grep "HTTP/1.1 200 OK")
+
+    if [[ -n $REMOTE_FILE_STATUS ]]; then
+
+        LOCAL_FILE_LAST_MODIFIED=$(cat $CURRENT_HOST_FILES/${i}.header | grep "Last-Modified:")
+        REMOTE_FILE_LAST_MODIFIED=$(cat $HEADER_FILE | grep "Last-Modified:")
+
+        if [[ $LOCAL_FILE_LAST_MODIFIED != $REMOTE_FILE_LAST_MODIFIED ]]; then
+
+            NEW_HOSTS="true"
+            #download new host file
+            wget -O $TMP_DIR/$TARGET_FILE $URL/$TARGET_FILE
+
+            if [[ -a $WHITE_LIST_DIR/$i ]]; then
+                while IFS='' read -r line; do
+                    echo "removing ${line}"
+                    sed --in-place "/${line}/d" "$TMP_DIR/$TARGET_FILE"
+                done < $WHITE_LIST_DIR/$i
+            fi
+
+            if [[ -a $CURRENT_HOST_FILES/$i ]]; then
+                mv $CURRENT_HOST_FILES/$i $CURRENT_HOST_FILES/$i.old
+            fi
+
+
+            cp $TMP_DIR/$TARGET_FILE $CURRENT_HOST_FILES/$i
+            cp $HEADER_FILE $CURRENT_HOST_FILES/${i}.header
+            logger -i -t blocklist-update " $i has been updated"
+        fi
+    else
+        logger -i -t blocklist-update "$TARGET_FILE - HTTP/1.1 503 Service Unavailable"
+    fi
+done
+
+rm -r $TMP_DIR
+
+if [[ "$NEW_HOSTS" = "true" ]]; then
+
+    echo "Restarting dnsmasq..."
+    service dnsmasq restart
+    logger -i -t blocklist-update "dnsmasq restart"
+fi

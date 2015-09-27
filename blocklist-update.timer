@@ -1,0 +1,10 @@
+[Unit]
+Description=Updates dnsmasq blocklists
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+Unit=blocklist-update.service
+
+[Install]
+WantedBy=multi-user.target
